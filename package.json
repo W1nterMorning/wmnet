@@ -1,0 +1,28 @@
+{
+  "name": "wmnet",
+  "version": "1.0.0",
+  "description": "macOS network gateway switcher — beautiful terminal UI",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "wmnet": "./dist/index.js",
+    "net-switcher": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outfile dist/index.js --target bun --format esm",
+    "compile": "bun build src/index.ts --outfile dist/wmnet --target bun --compile",
+    "start": "bun run dist/index.js"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "dependencies": {
+    "chalk": "5",
+    "commander": "^15.0.0",
+    "figlet": "^1.11.0",
+    "gradient-string": "^3.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
+}

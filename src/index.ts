@@ -16,7 +16,7 @@ import {
 import { getCurrentStatus, switchGateway } from "./network";
 import { captureState, undoLastSwitch } from "./undo";
 import { pingTest } from "./connectivity";
-import { getColors, setTheme } from "./theme";
+import { getColors, setTheme, getThemeNames } from "./theme";
 import { ProfileSchema } from "./types";
 
 const program = new Command();
@@ -41,9 +41,9 @@ program
     console.log("  " + chalk.bold.white("Current Status"));
     console.log("  " + c.dim("─".repeat(33)));
     console.log(`  ${c.muted("Local IP".padEnd(12))}${c.text(s.localIp ?? "unknown")}`);
-    console.log(
-      `  ${c.muted("Interface".padEnd(12))}${c.text(s.serviceName ?? "unknown")} ${c.dim(`(${s.interfaceName ?? "?"})`)}`,
-    );
+    let ifLine = `  ${c.muted("Interface".padEnd(12))}${c.text(s.serviceName ?? "unknown")} ${c.dim(`(${s.interfaceName ?? "?"})`)}`;
+    if (s.ssid) ifLine += `  ${c.dim("⌿")} ${c.textCool(s.ssid)}`;
+    console.log(ifLine);
     let gwLine = `  ${c.muted("Gateway".padEnd(12))}${c.brand.bold(s.gateway ?? "unknown")}`;
     if (match) {
       gwLine += `   ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(match.name.toUpperCase())} `)}`;
@@ -91,11 +91,18 @@ program
       await switchGateway(profile);
       console.log("  " + c.success("✓") + c.text("  Gateway switched"));
 
-      const result = await pingTest(profile.testTarget, 3, 3);
-      const pingColor = result.success ? c.success : c.error;
-      console.log(
-        "  " + c.success("✓") + c.text(`  Connectivity test: ${pingColor(`${result.avg.toFixed(1)}ms`)}`),
-      );
+      await new Promise(r => setTimeout(r, 1500)); // settle
+      const targets = [
+        { host: "8.8.8.8", label: "Google" },
+        { host: "github.com", label: "GitHub" },
+        { host: "baidu.com", label: "Baidu" },
+        { host: "bilibili.com", label: "Bilibili" },
+      ];
+      for (const t of targets) {
+        const r = await pingTest(t.host, 2, 3);
+        const color = r.success ? c.success : c.error;
+        console.log(`  ${c.success("✓")}${c.text(`  ${t.label.padEnd(10)} ${color(`${r.avg.toFixed(0)}ms`.padStart(5))}`)}`);
+      }
       console.log();
       console.log("  " + c.success.bold("── Switch Complete ──"));
     } catch (e) {
@@ -141,6 +148,7 @@ program
   .option("--dns <servers>", "Comma-separated DNS servers")
   .option("--desc <description>", "Description")
   .option("--dhcp", "Use DHCP", true)
+  .option("--static", "Use static IP (implies --no-dhcp)")
   .option("--static-ip <ip>", "Static IP address")
   .option("--subnet <mask>", "Subnet mask")
   .action(async (opts) => {
@@ -159,7 +167,7 @@ program
       id,
       name: opts.name as string,
       gateway: opts.gateway as string,
-      useDhcp: opts.dhcp !== false,
+      useDhcp: !opts.static,
       staticIp: opts.staticIp as string | undefined,
       subnetMask: opts.subnet as string | undefined,
       dns,
@@ -267,7 +275,7 @@ program
   .command("settings")
   .description("View or change settings")
   .option("--confirm <bool>", "Enable/disable confirmation before switch (true/false)")
-  .option("--theme <name>", "Set theme (cyan/sunset/forest/purple/rose/monochrome)")
+  .option("--theme <name>", `Set theme (${getThemeNames().join("/")})`)
   .action(async (opts) => {
     const c = getColors();
     const settings = getSettings();
@@ -283,7 +291,7 @@ program
         console.log(c.success(`✓ Theme set to "${opts.theme}"`));
       } else {
         console.log(c.error(`✗ Unknown theme "${opts.theme}"`));
-        console.log(c.dim("Available: cyan, sunset, forest, purple, rose, monochrome"));
+        console.log(c.dim("Available: " + getThemeNames().join(" ")));
       }
     }
 
@@ -308,7 +316,7 @@ program
     if (!name) {
       const settings = getSettings();
       console.log(`  Current theme: ${c.brand(settings.theme)}`);
-      console.log(`  Available: ${c.dim("cyan sunset forest purple rose monochrome")}`);
+      console.log(`  Available: ${c.dim(getThemeNames().join(" "))}`);
       process.exit(0);
     }
     if (setTheme(name)) {

@@ -11,7 +11,7 @@ export async function pingTest(
   try {
     const out = execSync(cmd, {
       encoding: "utf8",
-      timeout: (count + 2) * 1000,
+      timeout: (count * 2 + 3) * 1000,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -52,35 +52,3 @@ export async function pingTest(
   }
 }
 
-export async function* pingStream(
-  target: string,
-  count = 3,
-  timeout = 3,
-): AsyncGenerator<string> {
-  const cmd = `ping -c ${count} -t ${timeout} ${target}`;
-
-  try {
-    const proc = Bun.spawn(["ping", "-c", String(count), "-t", String(timeout), target], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-
-    const decoder = new TextDecoder();
-    const reader = proc.stdout.getReader();
-
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (line.trim()) yield line.trim();
-      }
-    }
-    if (buffer.trim()) yield buffer.trim();
-  } catch (e) {
-    yield `Ping failed: ${(e as Error).message}`;
-  }
-}

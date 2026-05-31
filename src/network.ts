@@ -1,19 +1,6 @@
 import { execSync } from "node:child_process";
 import type { Profile, NetworkStatus } from "./types";
 
-function sudo(cmd: string, timeout = 15000): string {
-  try {
-    return execSync(`sudo ${cmd}`, {
-      encoding: "utf8",
-      timeout,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (e: any) {
-    const stderr = e.stderr ?? e.message ?? "";
-    throw new Error(stderr.trim() || `Command failed: ${cmd}`);
-  }
-}
-
 function exec(cmd: string, timeout = 5000): string {
   try {
     return execSync(cmd, {
@@ -33,8 +20,9 @@ export function getCurrentStatus(): NetworkStatus {
   const dns = serviceName ? getDNS(serviceName) : [];
   const dhcp = serviceName ? isDHCP(serviceName) : true;
   const ifName = serviceName ? getInterfaceForService(serviceName) : null;
+  const ssid = ifName ? getWiFiSSID(ifName) : null;
 
-  return { localIp, gateway, interfaceName: ifName, serviceName, dns, dhcp };
+  return { localIp, gateway, interfaceName: ifName, serviceName, ssid, dns, dhcp };
 }
 
 export async function switchGateway(profile: Profile): Promise<void> {
@@ -206,4 +194,10 @@ function getInterfaceForService(service: string): string | null {
     }
   }
   return null;
+}
+
+function getWiFiSSID(ifName: string): string | null {
+  const out = exec(`networksetup -getairportnetwork ${ifName} 2>/dev/null`);
+  const match = out.match(/Current Wi-Fi Network:\s+(.+)/);
+  return match?.[1]?.trim() ?? null;
 }

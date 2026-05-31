@@ -25,18 +25,31 @@ export const ProfileSchema = z.object({
   testTarget: z.string().default("8.8.8.8"),
   color: z.string().default("cyan"),
   order: z.number().int().default(0),
-});
+}).refine(
+  (p) => p.useDhcp || (p.staticIp && p.subnetMask),
+  { message: "Static IP and Subnet Mask required when DHCP is disabled" },
+);
 
 export type Profile = z.infer<typeof ProfileSchema>;
 
 // ── App settings ──
+export const THEME_NAMES = [
+  // ── 原始色调 ──
+  "cyan", "sunset", "forest", "purple", "rose", "monochrome",
+  // ── 渐变 ──
+  "aurora", "ocean", "sakura", "neon",
+  "matrix", "lava", "midnight", "cotton-candy", "sunflare", "mint",
+  "tricolor", "galaxy", "candy",
+  // ── 多色硬切 ──
+  "gundam", "eva-01", "voltron", "cyber", "joker",
+  "frost", "inferno", "thor", "venom", "rainbow", "prism", "voltron-prism",
+] as const;
+
 export const SettingsSchema = z.object({
   confirmBeforeSwitch: z.boolean().default(true),
   autoTestAfterSwitch: z.boolean().default(true),
   testTimeoutSeconds: z.number().int().min(1).max(10).default(3),
-  theme: z
-    .enum(["cyan", "sunset", "forest", "purple", "rose", "monochrome"])
-    .default("cyan"),
+  theme: z.enum(THEME_NAMES).default("cyan"),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -58,7 +71,7 @@ export type UndoSnapshot = z.infer<typeof UndoSnapshotSchema>;
 export const ConfigFileSchema = z.object({
   version: z.number().int().default(1),
   profiles: z.array(ProfileSchema).default([]),
-  settings: SettingsSchema.default({}),
+  settings: SettingsSchema.default({ confirmBeforeSwitch: true, autoTestAfterSwitch: true, testTimeoutSeconds: 3, theme: "cyan" }),
   undoState: UndoSnapshotSchema.nullable().default(null),
 });
 
@@ -70,8 +83,17 @@ export interface NetworkStatus {
   gateway: string | null;
   interfaceName: string | null;
   serviceName: string | null;
+  ssid: string | null;
   dns: string[];
   dhcp: boolean;
+}
+
+// ── Form field for editing ──
+export interface FieldDef {
+  key: string;
+  label: string;
+  value: string;
+  placeholder: string;
 }
 
 // ── App state machine ──
@@ -80,7 +102,12 @@ export type AppStep =
   | { kind: "selecting"; highlightIndex: number }
   | { kind: "confirming"; highlightIndex: number }
   | { kind: "switching"; profile: Profile; stages: StageState[] }
-  | { kind: "done"; profile: Profile; success: boolean; error?: string };
+  | { kind: "done"; profile: Profile; success: boolean; error?: string }
+  | { kind: "theme-picker"; themeIndex: number }
+  | { kind: "exit-confirm" }
+  | { kind: "editing"; fields: FieldDef[]; fieldIndex: number; profileId: string }
+  | { kind: "adding"; fields: FieldDef[]; fieldIndex: number }
+  | { kind: "delete-confirm"; profileIndex: number };
 
 export interface StageState {
   label: string;

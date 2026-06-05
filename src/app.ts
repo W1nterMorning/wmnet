@@ -8,6 +8,7 @@ import { loadConfig, getProfiles, saveConfig, addProfile, updateProfile, removeP
 import { getCurrentStatus, switchGateway } from "./network";
 import { captureState, undoLastSwitch } from "./undo";
 import { pingTest, tcpTest } from "./connectivity";
+import { t, setLang, getLang } from "./i18n";
 import type { Profile, AppStep, StageState, NetworkStatus, Settings, FieldDef } from "./types";
 import { ProfileSchema } from "./types";
 
@@ -19,25 +20,25 @@ const themeNames = getThemeNames();
 
 function profileToFields(p: Profile): FieldDef[] {
   return [
-    { key: "name", label: "Name", value: p.name, placeholder: "Profile name" },
-    { key: "gateway", label: "Gateway", value: p.gateway, placeholder: "192.168.x.x" },
-    { key: "staticIp", label: "Static IP", value: p.staticIp ?? "", placeholder: "Leave empty if DHCP" },
-    { key: "subnetMask", label: "Subnet", value: p.subnetMask ?? "", placeholder: "255.255.255.0" },
-    { key: "dns", label: "DNS", value: p.dns.join(", "), placeholder: "192.168.x.x" },
-    { key: "description", label: "Description", value: p.description ?? "", placeholder: "Optional" },
-    { key: "useDhcp", label: "DHCP", value: p.useDhcp ? "true" : "false", placeholder: "Space = toggle" },
+    { key: "name", label: t("field.name"), value: p.name, placeholder: t("placeholder.name") },
+    { key: "gateway", label: t("field.gateway"), value: p.gateway, placeholder: t("placeholder.gateway") },
+    { key: "staticIp", label: t("field.staticIp"), value: p.staticIp ?? "", placeholder: t("placeholder.staticIp") },
+    { key: "subnetMask", label: t("field.subnetMask"), value: p.subnetMask ?? "", placeholder: t("placeholder.subnet") },
+    { key: "dns", label: t("field.dns"), value: p.dns.join(", "), placeholder: t("placeholder.dns") },
+    { key: "description", label: t("field.description"), value: p.description ?? "", placeholder: t("placeholder.desc") },
+    { key: "useDhcp", label: t("field.dhcp"), value: p.useDhcp ? "true" : "false", placeholder: t("placeholder.dhcp") },
   ];
 }
 
 function emptyFields(): FieldDef[] {
   return [
-    { key: "name", label: "Name", value: "", placeholder: "Profile name" },
-    { key: "gateway", label: "Gateway", value: "", placeholder: "192.168.x.x" },
-    { key: "staticIp", label: "Static IP", value: "", placeholder: "Leave empty if DHCP" },
-    { key: "subnetMask", label: "Subnet", value: "", placeholder: "255.255.255.0" },
-    { key: "dns", label: "DNS", value: "", placeholder: "192.168.x.x" },
-    { key: "description", label: "Description", value: "", placeholder: "Optional" },
-    { key: "useDhcp", label: "DHCP", value: "true", placeholder: "Space = toggle" },
+    { key: "name", label: t("field.name"), value: "", placeholder: t("placeholder.name") },
+    { key: "gateway", label: t("field.gateway"), value: "", placeholder: t("placeholder.gateway") },
+    { key: "staticIp", label: t("field.staticIp"), value: "", placeholder: t("placeholder.staticIp") },
+    { key: "subnetMask", label: t("field.subnetMask"), value: "", placeholder: t("placeholder.subnet") },
+    { key: "dns", label: t("field.dns"), value: "", placeholder: t("placeholder.dns") },
+    { key: "description", label: t("field.description"), value: "", placeholder: t("placeholder.desc") },
+    { key: "useDhcp", label: t("field.dhcp"), value: "true", placeholder: t("placeholder.dhcp") },
   ];
 }
 
@@ -87,7 +88,7 @@ async function render() {
       console.log("  " + logo.colors[i]!(logo.lines[i]!));
     }
   }
-  console.log("  " + c.dim("gateway switcher for macOS"));
+  console.log("  " + c.dim(t("logo.tagline")));
   console.log();
   console.log("  " + c.divider("─".repeat(50)));
   console.log();
@@ -95,34 +96,34 @@ async function render() {
   // Status card
   if (status) {
     const st = status; // narrow for TS
-    console.log("  " + chalk.bold.white("Current Status"));
+    console.log("  " + chalk.bold.white(t("status.title")));
     console.log("  " + c.dim("─".repeat(33)));
     const gwIp = st.gateway ?? "unknown";
     const dnsOk = st.dns.length > 0 ? c.success("●") : (st.dhcp ? c.success("●") : c.error("●"));
-    console.log(`  ${c.muted("Local IP".padEnd(12))}${c.text(st.localIp ?? "unknown")}`);
+    console.log(`  ${c.muted(t("status.localIp").padEnd(12))}${c.text(st.localIp ?? "unknown")}`);
     const ifStr = st.serviceName ?? "unknown";
     const ifExtra = st.interfaceName ? c.dim(` (${st.interfaceName})`) : "";
-    let ifLine = `  ${c.muted("Interface".padEnd(12))}${c.text(ifStr)}${ifExtra}`;
+    let ifLine = `  ${c.muted(t("status.interface").padEnd(12))}${c.text(ifStr)}${ifExtra}`;
     if (st.ssid) ifLine += `  ${c.dim("⌿")} ${c.textCool(st.ssid)}`;
     console.log(ifLine);
     const match = profiles.find((p) => p.gateway === st.gateway);
-    let gwLine = `  ${c.muted("Gateway".padEnd(12))}${c.brand.bold(gwIp)}`;
+    let gwLine = `  ${c.muted(t("status.gateway").padEnd(12))}${c.brand.bold(gwIp)}`;
     if (match) gwLine += `   ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(match.name.toUpperCase())} `)}`;
     console.log(gwLine);
-    const dnsDisplay = st.dns.length > 0 ? c.text(st.dns.join(", ")) : (st.dhcp ? c.success("DHCP auto") : c.error("none"));
-    console.log(`  ${c.muted("DNS".padEnd(12))}${dnsOk} ${dnsDisplay}`);
+    const dnsDisplay = st.dns.length > 0 ? c.text(st.dns.join(", ")) : (st.dhcp ? c.success(t("dns.dhcpAuto")) : c.error(t("dns.none")));
+    console.log(`  ${c.muted(t("status.dns").padEnd(12))}${dnsOk} ${dnsDisplay}`);
     console.log("  " + c.dim("─".repeat(33)));
     console.log();
   }
 
   // ── Step: loading ──
   if (step.kind === "loading") {
-    console.log("  " + c.brand("◌") + c.textWarm("  Loading network status..."));
+    console.log("  " + c.brand("◌") + c.textWarm("  " + t("msg.loading")));
   }
 
   // ── Step: selecting / confirming ──
   if (step.kind === "selecting" || step.kind === "confirming" || step.kind === "exit-confirm" || step.kind === "delete-confirm") {
-    console.log("  " + chalk.bold.white("Profiles"));
+    console.log("  " + chalk.bold.white(t("profiles.title")));
     console.log();
     const hlIdx = step.kind === "delete-confirm" ? step.profileIndex
                 : step.kind === "exit-confirm" ? 0
@@ -135,7 +136,7 @@ async function render() {
       const arrow = hl ? c.brand.bold("❯") : " ";
       const name = hl ? c.brand.bold(p.name.padEnd(26)) : c.text(p.name.padEnd(26));
       const ip = hl ? c.textWarm(p.gateway) : c.textCool(p.gateway);
-      const activeMark = isActive ? "  " + c.success.bold("◀ active") : "";
+      const activeMark = isActive ? "  " + c.success.bold("◀ " + t("profiles.active")) : "";
       console.log(`  ${arrow} ${name} ${ip}${activeMark}`);
       console.log(`    ${c.dim(p.description || "")}`);
       if (i < profiles.length - 1) console.log();
@@ -146,32 +147,32 @@ async function render() {
     if (step.kind === "confirming") {
       const p = profiles[step.highlightIndex]!;
       console.log();
-      console.log("  " + c.textWarm.bold(`Switch to "${p.name}" (${p.gateway})?`));
-      console.log("  " + c.textWarm.bold("Enter") + c.dim(" = Confirm    ") + c.error.bold("Esc") + c.dim(" = Cancel"));
+      console.log("  " + c.textWarm.bold(`${t("confirm.switchTo")} "${p.name}" (${p.gateway})?`));
+      console.log("  " + c.textWarm.bold("Enter") + c.dim(` = ${t("confirm.confirm")}    `) + c.error.bold("Esc") + c.dim(` = ${t("confirm.cancel")}`));
       console.log();
       console.log("  " + c.divider("─".repeat(54)));
     } else if (step.kind === "delete-confirm") {
       const p = profiles[step.profileIndex]!;
       console.log();
-      console.log("  " + c.error.bold(`Delete "${p.name}" (${p.gateway})?`));
-      console.log("  " + c.textWarm.bold("Enter") + c.dim(" = Delete    ") + c.error.bold("Esc") + c.dim(" = Cancel"));
+      console.log("  " + c.error.bold(`${t("confirm.delete")} "${p.name}" (${p.gateway})?`));
+      console.log("  " + c.textWarm.bold("Enter") + c.dim(` = ${t("confirm.delete")}    `) + c.error.bold("Esc") + c.dim(` = ${t("confirm.cancel")}`));
       console.log();
       console.log("  " + c.divider("─".repeat(54)));
     } else if (step.kind === "exit-confirm") {
       console.log();
-      console.log("  " + c.textWarm.bold("Quit wmnet?"));
-      console.log("  " + c.textWarm.bold("Enter") + c.dim(" = Quit    ") + c.error.bold("Esc") + c.dim(" = Cancel"));
+      console.log("  " + c.textWarm.bold(t("confirm.quitMsg")));
+      console.log("  " + c.textWarm.bold("Enter") + c.dim(` = ${t("confirm.quit")}    `) + c.error.bold("Esc") + c.dim(` = ${t("confirm.cancel")}`));
       console.log();
       console.log("  " + c.divider("─".repeat(54)));
     } else {
-      console.log("  " + c.textWarm.bold("↑↓") + c.dim(" move   ") + c.textWarm.bold("Enter") + c.dim(" select   ") + c.textWarm.bold("1-9") + c.dim(" quick   ") + c.textWarm.bold("a") + c.dim(" add   ") + c.textWarm.bold("e") + c.dim(" edit"));
-      console.log("  " + c.textWarm.bold("d") + c.dim(" delete   ") + c.textWarm.bold("t") + c.dim(" theme   ") + c.textWarm.bold("r") + c.dim(" refresh   ") + c.textWarm.bold("q") + c.dim(" quit"));
+      console.log("  " + c.textWarm.bold("↑↓") + c.dim(" " + t("btn.move") + "   ") + c.textWarm.bold("Enter") + c.dim(" " + t("btn.select") + "   ") + c.textWarm.bold("1-9") + c.dim(" " + t("btn.quick") + "   ") + c.textWarm.bold("a") + c.dim(" " + t("btn.add") + "   ") + c.textWarm.bold("e") + c.dim(" " + t("btn.edit")));
+      console.log("  " + c.textWarm.bold("d") + c.dim(" " + t("btn.delete") + "   ") + c.textWarm.bold("t") + c.dim(" " + t("btn.theme") + "   ") + c.textWarm.bold("r") + c.dim(" " + t("btn.refresh") + "   ") + c.textWarm.bold("l") + c.dim(" lang   ") + c.textWarm.bold("q") + c.dim(" " + t("btn.quit")));
     }
   }
 
   // ── Step: theme-picker (3-column grid) ──
   if (step.kind === "theme-picker") {
-    console.log("  " + chalk.bold.white("Select Theme"));
+    console.log("  " + chalk.bold.white(t("theme.title")));
     console.log();
     const COLS = 3;
     const perCol = Math.ceil(themeNames.length / COLS);
@@ -198,12 +199,12 @@ async function render() {
     }
     console.log();
     console.log("  " + c.divider("─".repeat(54)));
-    console.log("  " + c.textWarm.bold("↑↓←→") + c.dim(" navigate   ") + c.textWarm.bold("Enter") + c.dim(" apply   ") + c.error.bold("Esc") + c.dim(" back"));
+    console.log("  " + c.textWarm.bold("↑↓←→") + c.dim(" " + t("btn.navigate") + "   ") + c.textWarm.bold("Enter") + c.dim(" " + t("btn.apply") + "   ") + c.error.bold("Esc") + c.dim(" " + t("btn.back")));
   }
 
   // ── Step: editing / adding ──
   if (step.kind === "editing" || step.kind === "adding") {
-    const title = step.kind === "editing" ? "Edit Profile" : "Add Profile";
+    const title = step.kind === "editing" ? t("form.edit") : t("form.add");
     console.log("  " + chalk.bold.white("── " + title + " ──"));
     console.log();
     for (let i = 0; i < step.fields.length; i++) {
@@ -218,7 +219,7 @@ async function render() {
       if (f.key === "useDhcp") {
         displayVal = dhcpIcon(f.value);
       } else if (dhcpOn && autoFields.includes(f.key) && !f.value) {
-        displayVal = c.success("Auto (DHCP)");
+        displayVal = c.success(t("field.autoDhcp"));
       } else if (hl) {
         displayVal = f.value + c.brand("█"); // cursor
       } else {
@@ -228,15 +229,15 @@ async function render() {
     }
     console.log();
     console.log("  " + c.divider("─".repeat(54)));
-    console.log("  " + c.textWarm.bold("↑↓") + c.dim(" field   ") + c.textWarm.bold("Tab") + c.dim(" next   ") + c.brand.bold("⌫") + c.dim(" delete"));
-    console.log("  " + c.textWarm.bold("Space") + c.dim(" toggle DHCP   ") + c.textWarm.bold("Enter") + c.dim(" save   ") + c.error.bold("Esc") + c.dim(" cancel"));
+    console.log("  " + c.textWarm.bold("↑↓") + c.dim(" " + t("btn.field") + "   ") + c.textWarm.bold("Tab") + c.dim(" " + t("btn.next") + "   ") + c.brand.bold("⌫") + c.dim(" " + t("btn.delete")));
+    console.log("  " + c.textWarm.bold("Space") + c.dim(" " + t("btn.toggle") + "   ") + c.textWarm.bold("Enter") + c.dim(" " + t("btn.save") + "   ") + c.error.bold("Esc") + c.dim(" " + t("btn.cancel")));
   }
 
   // ── Step: switching ──
   if (step.kind === "switching") {
-    console.log("  " + chalk.bold.white("── Switching Gateway ──"));
+    console.log("  " + chalk.bold.white(`── ${t("switch.title")} ──`));
     console.log();
-    console.log("  " + c.muted("Target ") + c.textWarm.bold(`${step.profile.name}  ${c.textCool("→")}  ${step.profile.gateway}`));
+    console.log("  " + c.muted(t("switch.target") + " ") + c.textWarm.bold(`${step.profile.name}  ${c.textCool("→")}  ${step.profile.gateway}`));
     console.log();
     for (const s of step.stages) {
       let icon: string; let style: (x: string) => string; let label: (x: string) => string;
@@ -255,11 +256,11 @@ async function render() {
   // ── Step: done ──
   if (step.kind === "done") {
     if (step.success) {
-      console.log("  " + c.success.bold("── Switch Complete ──"));
+      console.log("  " + c.success.bold(`── ${t("msg.switchComplete")} ──`));
       console.log();
-      console.log("    " + c.success.bold("✓") + "  " + c.success("Gateway switched successfully"));
+      console.log("    " + c.success.bold("✓") + "  " + c.success(t("msg.switchSuccess")));
       console.log();
-      console.log(`    ${c.muted("Gateway")}  ${c.brand.bold(step.profile.gateway)}  ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(step.profile.name.toUpperCase())} `)}`);
+      console.log(`    ${c.muted(t("status.gateway"))}  ${c.brand.bold(step.profile.gateway)}  ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(step.profile.name.toUpperCase())} `)}`);
       for (const h of ["google.com", "github.com", "baidu.com", "bilibili.com"]) {
         const r = h === "google.com" ? tcpTest(h, 3) : pingTest(h, 2, 3);
         const clr = r.success ? c.success : c.error;
@@ -267,15 +268,15 @@ async function render() {
         console.log(`    ${c.muted("Ping".padEnd(10))}${c.textCool(h.padEnd(10))} ${clr(`${r.avg}ms`.padStart(5))} ${ico}`);
       }
     } else {
-      console.log("  " + c.error.bold("── Switch Failed ──"));
+      console.log("  " + c.error.bold(`── ${t("msg.switchFailed")} ──`));
       console.log();
-      console.log("    " + c.error.bold("✗") + "  " + c.error("Gateway switch failed"));
+      console.log("    " + c.error.bold("✗") + "  " + c.error(t("msg.switchFailMsg")));
       if (step.error) console.log(`    ${c.dim(step.error)}`);
       console.log();
-      console.log("  " + c.dim("Gateway automatically reverted."));
+      console.log("  " + c.dim(t("msg.autoReverted")));
     }
     console.log();
-    console.log("  " + c.dim("Press any key to return to menu..."));
+    console.log("  " + c.dim(t("msg.pressKey")));
   }
 
   console.log();
@@ -287,17 +288,17 @@ async function executeSwitch(profile: Profile) {
   const isPureDhcp = profile.useDhcp && !profile.gateway;
   const stages: StageState[] = isPureDhcp
     ? [
-        { label: "Snapshot saved", status: "pending" },
-        { label: "Switching to DHCP mode", status: "pending" },
-        { label: "Waiting for DHCP lease...", status: "pending" },
-        { label: `Verifying connectivity (${profile.testTarget})`, status: "pending" },
+        { label: t("stage.snapshot"), status: "pending" },
+        { label: t("stage.switchDhcp"), status: "pending" },
+        { label: t("stage.dhcpLease"), status: "pending" },
+        { label: `${t("stage.verify")} (${profile.testTarget})`, status: "pending" },
       ]
     : [
-        { label: "Snapshot saved", status: "pending" },
-        { label: "Deleting default route", status: "pending" },
-        { label: `Adding new route (${profile.gateway})`, status: "pending" },
-        { label: "Updating network service", status: "pending" },
-        { label: `Verifying connectivity (${profile.testTarget})`, status: "pending" },
+        { label: t("stage.snapshot"), status: "pending" },
+        { label: t("stage.deleteRoute"), status: "pending" },
+        { label: `${t("stage.addRoute")} (${profile.gateway})`, status: "pending" },
+        { label: t("stage.service"), status: "pending" },
+        { label: `${t("stage.verify")} (${profile.testTarget})`, status: "pending" },
       ];
   step = { kind: "switching", profile, stages };
   await render();
@@ -347,7 +348,7 @@ async function executeSwitch(profile: Profile) {
     const target = profile.testTarget || "google.com";
     const r = target === "google.com" ? tcpTest(target, 3) : pingTest(target, 2, 3);
     stages[pingIdx]!.status = r.success ? "done" : "failed";
-    stages[pingIdx]!.detail = r.success ? `${r.avg}ms` : "no response";
+    stages[pingIdx]!.detail = r.success ? `${r.avg}ms` : t("stage.noResponse");
     await render();
     step = { kind: "done", profile, success: true };
   } catch (e) {
@@ -541,6 +542,10 @@ function setupInput() {
         const idx = themeNames.indexOf(getTheme());
         step = { kind: "theme-picker", themeIndex: Math.max(0, idx) };
         await render();
+      } else if (data === "l") {
+        const newLang: "en" | "zh" = getLang() === "en" ? "zh" : "en";
+        setLang(newLang);
+        await render();
       } else if (data === "a") {
         step = { kind: "adding", fields: emptyFields(), fieldIndex: 0 };
         await render();
@@ -597,7 +602,7 @@ function setupInput() {
   });
 
   process.on("SIGINT", () => {
-    console.log("\n" + getColors().dim("Cancelled"));
+    console.log("\n" + getColors().dim(t("exit.cancelled")));
     process.exit(0);
   });
 }
@@ -609,6 +614,7 @@ export async function startInteractive(): Promise<void> {
   profiles = getProfiles();
   settings = config.settings;
   setTheme(settings.theme);
+  setLang(settings.language as "en" | "zh");
 
   const c = getColors();
   await render();
@@ -617,7 +623,7 @@ export async function startInteractive(): Promise<void> {
   const configPath = join(homedir(), ".config", "wmnet", "profiles.yaml");
   const isFirstRun = !existsSync(configPath);
   if (isFirstRun && profiles.length === 0) {
-    console.log("  " + c.warn("⚠") + "  " + c.textWarm("No profiles found. Auto-detecting current network..."));
+    console.log("  " + c.warn("⚠") + "  " + c.textWarm(t("msg.noProfiles")));
     console.log();
     const current = getCurrentStatus();
     status = current;
@@ -625,26 +631,26 @@ export async function startInteractive(): Promise<void> {
       const defaultProfile: Profile = {
         id: "default", name: "My Gateway", gateway: current.gateway,
         useDhcp: current.dhcp, dns: current.dns,
-        description: "Auto-detected default gateway", order: 0,
+        description: t("field.autoDhcp"), order: 0,
         testTarget: "google.com", color: "cyan",
       };
       config.profiles = [defaultProfile];
       saveConfig(config);
       profiles = [defaultProfile];
       settings = config.settings;
-      console.log("  " + c.success("✓") + c.text(` Found: ${current.serviceName} (${current.interfaceName ?? ""}) → ${current.gateway}`));
+      console.log("  " + c.success("✓") + c.text(` ${t("msg.firstFound")}: ${current.serviceName} (${current.interfaceName ?? ""}) → ${current.gateway}`));
       console.log();
-      console.log("  " + c.dim('Created default profile: "My Gateway"'));
-      console.log("  " + c.dim("You can edit it later with:  e"));
+      console.log("  " + c.dim(t("msg.firstCreated")));
+      console.log("  " + c.dim(t("msg.firstEdit")));
     } else {
-      console.log("  " + c.error("✗") + "  " + c.text("Could not detect network."));
-      console.log("  " + c.dim("Please add a profile manually:  a"));
+      console.log("  " + c.error("✗") + "  " + c.text(t("msg.noNetwork")));
+      console.log("  " + c.dim(t("msg.addManually")));
     }
     console.log();
   } else if (!isFirstRun && profiles.length === 0) {
     // File exists but parsing failed — warn, don't overwrite
-    console.log("  " + c.error("✗") + "  " + c.text("Config file exists but could not be parsed."));
-    console.log("  " + c.dim("Check ~/.config/wmnet/profiles.yaml for errors."));
+    console.log("  " + c.error("✗") + "  " + c.text(t("msg.configCorrupted")));
+    console.log("  " + c.dim(t("msg.checkConfig")));
     console.log("  " + c.dim("Or add a profile:  a"));
     console.log();
     status = getCurrentStatus();

@@ -26,7 +26,12 @@ program
   .name("wmnet")
   .alias("net-switcher")
   .description("macOS network gateway switcher")
-  .version("1.0.0");
+  .version("1.0.0")
+  .hook("preAction", () => {
+    const cfg = loadConfig();
+    setTheme(cfg.settings.theme);
+    setLang(cfg.settings.language as "en" | "zh");
+  });
 
 // ── status ──
 program

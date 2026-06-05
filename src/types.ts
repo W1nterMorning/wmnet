@@ -53,6 +53,7 @@ export const SettingsSchema = z.object({
   autoTestAfterSwitch: z.boolean().default(true),
   testTimeoutSeconds: z.number().int().min(1).max(10).default(3),
   theme: z.enum(THEME_NAMES).default("cyan"),
+  language: z.enum(["en", "zh"]).default("en"),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -74,7 +75,7 @@ export type UndoSnapshot = z.infer<typeof UndoSnapshotSchema>;
 export const ConfigFileSchema = z.object({
   version: z.number().int().default(1),
   profiles: z.array(ProfileSchema).default([]),
-  settings: SettingsSchema.default({ confirmBeforeSwitch: true, autoTestAfterSwitch: true, testTimeoutSeconds: 3, theme: "cyan" }),
+  settings: SettingsSchema.default({ confirmBeforeSwitch: true, autoTestAfterSwitch: true, testTimeoutSeconds: 3, theme: "cyan", language: "en" }),
   undoState: UndoSnapshotSchema.nullable().default(null),
 });
 

@@ -49,7 +49,7 @@ function getDefaultConfig(): ConfigFile {
   return {
     version: 1,
     profiles: [],
-    settings: { confirmBeforeSwitch: true, autoTestAfterSwitch: true, testTimeoutSeconds: 3, theme: "cyan" },
+    settings: { confirmBeforeSwitch: true, autoTestAfterSwitch: true, testTimeoutSeconds: 3, theme: "cyan", language: "en" as const },
     undoState: null,
   };
 }

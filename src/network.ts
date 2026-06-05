@@ -26,6 +26,22 @@ export function getCurrentStatus(): NetworkStatus {
 }
 
 export async function switchGateway(profile: Profile): Promise<void> {
+  const service = getNetworkService();
+  if (!service) throw new Error("No active network service found");
+
+  // Pure DHCP mode — let macOS handle everything
+  if (profile.useDhcp && !profile.gateway) {
+    execSync(`sudo networksetup -setdhcp "${service}"`, {
+      encoding: "utf8", timeout: 15000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    execSync(`sudo networksetup -setdnsservers "${service}" "Empty"`, {
+      encoding: "utf8", timeout: 10000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return;
+  }
+
   // Step 1: Delete current default route
   execSync("sudo route delete default", {
     encoding: "utf8",
@@ -45,9 +61,6 @@ export async function switchGateway(profile: Profile): Promise<void> {
   }
 
   // Step 3: Update network service
-  const service = getNetworkService();
-  if (!service) throw new Error("No active network service found");
-
   if (profile.useDhcp) {
     execSync(`sudo networksetup -setdhcp "${service}"`, {
       encoding: "utf8",
@@ -65,8 +78,13 @@ export async function switchGateway(profile: Profile): Promise<void> {
     );
   }
 
-  // Step 4: Set DNS
-  if (profile.dns.length > 0) {
+  // Step 4: DNS — DHCP clears, static sets
+  if (profile.useDhcp) {
+    execSync(`sudo networksetup -setdnsservers "${service}" "Empty"`, {
+      encoding: "utf8", timeout: 10000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } else if (profile.dns.length > 0) {
     execSync(
       `sudo networksetup -setdnsservers "${service}" ${profile.dns.join(" ")}`,
       {
@@ -115,7 +133,12 @@ export async function restoreGateway(
     );
   }
 
-  if (dns.length > 0) {
+  if (dhcp) {
+    execSync(`sudo networksetup -setdnsservers "${serviceName}" "Empty"`, {
+      encoding: "utf8", timeout: 10000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } else if (dns.length > 0) {
     execSync(
       `sudo networksetup -setdnsservers "${serviceName}" ${dns.join(" ")}`,
       {

@@ -14,7 +14,7 @@ const ipv4 = z.string().regex(ipv4Regex, "Must be a valid IPv4 address").refine(
 export const ProfileSchema = z.object({
   id: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, "lowercase-dash-only"),
   name: z.string().min(1).max(64),
-  gateway: ipv4,
+  gateway: z.string().default(""),
   interface: z.string().optional(),
   useDhcp: z.boolean().default(true),
   staticIp: ipv4.optional(),
@@ -22,12 +22,15 @@ export const ProfileSchema = z.object({
   dns: z.array(z.string()).default([]),
   shortcut: z.string().max(3).optional(),
   description: z.string().max(200).default(""),
-  testTarget: z.string().default("8.8.8.8"),
+  testTarget: z.string().default("google.com"),
   color: z.string().default("cyan"),
   order: z.number().int().default(0),
 }).refine(
-  (p) => p.useDhcp || (p.staticIp && p.subnetMask),
-  { message: "Static IP and Subnet Mask required when DHCP is disabled" },
+  (p) => p.useDhcp || (!!p.gateway && p.staticIp && p.subnetMask),
+  { message: "Gateway, Static IP and Subnet Mask required when DHCP is disabled" },
+).refine(
+  (p) => p.useDhcp || p.gateway !== "",
+  { message: "Gateway is required unless DHCP mode" },
 );
 
 export type Profile = z.infer<typeof ProfileSchema>;
@@ -115,12 +118,3 @@ export interface StageState {
   detail?: string;
 }
 
-export interface PingResult {
-  transmitted: number;
-  received: number;
-  lossPercent: number;
-  min: number;
-  avg: number;
-  max: number;
-  success: boolean;
-}

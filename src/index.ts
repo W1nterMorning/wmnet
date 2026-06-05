@@ -15,7 +15,7 @@ import {
 } from "./config";
 import { getCurrentStatus, switchGateway } from "./network";
 import { captureState, undoLastSwitch } from "./undo";
-import { pingTest } from "./connectivity";
+import { pingTest, tcpTest } from "./connectivity";
 import { getColors, setTheme, getThemeNames } from "./theme";
 import { ProfileSchema } from "./types";
 
@@ -49,8 +49,9 @@ program
       gwLine += `   ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(match.name.toUpperCase())} `)}`;
     }
     console.log(gwLine);
-    const dnsOk = s.dns.length > 0 ? c.success("●") : c.error("●");
-    console.log(`  ${c.muted("DNS".padEnd(12))}${dnsOk} ${c.text(s.dns.join(", ") || "none")}`);
+    const dnsOk = s.dns.length > 0 ? c.success("●") : (s.dhcp ? c.success("●") : c.error("●"));
+    const dnsDisplay = s.dns.length > 0 ? c.text(s.dns.join(", ")) : (s.dhcp ? c.success("DHCP auto") : c.error("none"));
+    console.log(`  ${c.muted("DNS".padEnd(12))}${dnsOk} ${dnsDisplay}`);
     console.log("  " + c.dim("─".repeat(33)));
     console.log();
     process.exit(0);
@@ -92,16 +93,10 @@ program
       console.log("  " + c.success("✓") + c.text("  Gateway switched"));
 
       await new Promise(r => setTimeout(r, 1500)); // settle
-      const targets = [
-        { host: "8.8.8.8", label: "Google" },
-        { host: "github.com", label: "GitHub" },
-        { host: "baidu.com", label: "Baidu" },
-        { host: "bilibili.com", label: "Bilibili" },
-      ];
-      for (const t of targets) {
-        const r = await pingTest(t.host, 2, 3);
-        const color = r.success ? c.success : c.error;
-        console.log(`  ${c.success("✓")}${c.text(`  ${t.label.padEnd(10)} ${color(`${r.avg.toFixed(0)}ms`.padStart(5))}`)}`);
+      for (const h of ["google.com", "github.com", "baidu.com", "bilibili.com"]) {
+        const r = h === "google.com" ? tcpTest(h, 3) : pingTest(h, 2, 3);
+        const clr = r.success ? c.success : c.error;
+        console.log(`  ${c.success("✓")}${c.text(`  ${h.padEnd(12)} ${clr(`${r.avg}ms`.padStart(5))}`)}`);
       }
       console.log();
       console.log("  " + c.success.bold("── Switch Complete ──"));
@@ -172,7 +167,7 @@ program
       subnetMask: opts.subnet as string | undefined,
       dns,
       description: (opts.desc as string) ?? "",
-      testTarget: "8.8.8.8",
+      testTarget: "google.com",
       color: "cyan",
       order: getProfiles().length,
     };

@@ -7,7 +7,7 @@ import { homedir } from "node:os";
 import { loadConfig, getProfiles, saveConfig, addProfile, updateProfile, removeProfile } from "./config";
 import { getCurrentStatus, switchGateway } from "./network";
 import { captureState, undoLastSwitch } from "./undo";
-import { pingTest } from "./connectivity";
+import { pingTest, tcpTest } from "./connectivity";
 import type { Profile, AppStep, StageState, NetworkStatus, Settings, FieldDef } from "./types";
 import { ProfileSchema } from "./types";
 
@@ -23,7 +23,7 @@ function profileToFields(p: Profile): FieldDef[] {
     { key: "gateway", label: "Gateway", value: p.gateway, placeholder: "192.168.x.x" },
     { key: "staticIp", label: "Static IP", value: p.staticIp ?? "", placeholder: "Leave empty if DHCP" },
     { key: "subnetMask", label: "Subnet", value: p.subnetMask ?? "", placeholder: "255.255.255.0" },
-    { key: "dns", label: "DNS", value: p.dns.join(", "), placeholder: "8.8.8.8, 1.1.1.1" },
+    { key: "dns", label: "DNS", value: p.dns.join(", "), placeholder: "192.168.x.x" },
     { key: "description", label: "Description", value: p.description ?? "", placeholder: "Optional" },
     { key: "useDhcp", label: "DHCP", value: p.useDhcp ? "true" : "false", placeholder: "Space = toggle" },
   ];
@@ -35,7 +35,7 @@ function emptyFields(): FieldDef[] {
     { key: "gateway", label: "Gateway", value: "", placeholder: "192.168.x.x" },
     { key: "staticIp", label: "Static IP", value: "", placeholder: "Leave empty if DHCP" },
     { key: "subnetMask", label: "Subnet", value: "", placeholder: "255.255.255.0" },
-    { key: "dns", label: "DNS", value: "", placeholder: "8.8.8.8, 1.1.1.1" },
+    { key: "dns", label: "DNS", value: "", placeholder: "192.168.x.x" },
     { key: "description", label: "Description", value: "", placeholder: "Optional" },
     { key: "useDhcp", label: "DHCP", value: "true", placeholder: "Space = toggle" },
   ];
@@ -55,7 +55,7 @@ function fieldsToProfile(fields: FieldDef[], existingId?: string, existingOrder?
     dns,
     description: get("description"),
     useDhcp: get("useDhcp") !== "false",
-    testTarget: "8.8.8.8",
+    testTarget: "google.com",
     color: "cyan",
     order: existingOrder ?? profiles.length,
   };
@@ -98,7 +98,7 @@ async function render() {
     console.log("  " + chalk.bold.white("Current Status"));
     console.log("  " + c.dim("─".repeat(33)));
     const gwIp = st.gateway ?? "unknown";
-    const dnsOk = st.dns.length > 0 ? c.success("●") : c.error("●");
+    const dnsOk = st.dns.length > 0 ? c.success("●") : (st.dhcp ? c.success("●") : c.error("●"));
     console.log(`  ${c.muted("Local IP".padEnd(12))}${c.text(st.localIp ?? "unknown")}`);
     const ifStr = st.serviceName ?? "unknown";
     const ifExtra = st.interfaceName ? c.dim(` (${st.interfaceName})`) : "";
@@ -109,7 +109,8 @@ async function render() {
     let gwLine = `  ${c.muted("Gateway".padEnd(12))}${c.brand.bold(gwIp)}`;
     if (match) gwLine += `   ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(match.name.toUpperCase())} `)}`;
     console.log(gwLine);
-    console.log(`  ${c.muted("DNS".padEnd(12))}${dnsOk} ${c.text(st.dns.join(", ") || "none")}`);
+    const dnsDisplay = st.dns.length > 0 ? c.text(st.dns.join(", ")) : (st.dhcp ? c.success("DHCP auto") : c.error("none"));
+    console.log(`  ${c.muted("DNS".padEnd(12))}${dnsOk} ${dnsDisplay}`);
     console.log("  " + c.dim("─".repeat(33)));
     console.log();
   }
@@ -211,9 +212,13 @@ async function render() {
       const arrow = hl ? c.brand.bold("❯") : " ";
       const label = (hl ? c.brand : c.muted)((f.label + ":").padEnd(14));
 
+      const dhcpOn = step.fields.find((x) => x.key === "useDhcp")?.value !== "false";
+      const autoFields = ["gateway", "staticIp", "subnetMask", "dns"];
       let displayVal: string;
       if (f.key === "useDhcp") {
         displayVal = dhcpIcon(f.value);
+      } else if (dhcpOn && autoFields.includes(f.key) && !f.value) {
+        displayVal = c.success("Auto (DHCP)");
       } else if (hl) {
         displayVal = f.value + c.brand("█"); // cursor
       } else {
@@ -255,18 +260,11 @@ async function render() {
       console.log("    " + c.success.bold("✓") + "  " + c.success("Gateway switched successfully"));
       console.log();
       console.log(`    ${c.muted("Gateway")}  ${c.brand.bold(step.profile.gateway)}  ${c.brand.bgHex("#1A3A3E")(` ${c.brand.bold(step.profile.name.toUpperCase())} `)}`);
-      // Multi-target ping
-      const targets = [
-        { host: "8.8.8.8", label: "Google" },
-        { host: "github.com", label: "GitHub" },
-        { host: "baidu.com", label: "Baidu" },
-        { host: "bilibili.com", label: "Bilibili" },
-      ];
-      for (const t of targets) {
-        const r = await pingTest(t.host, 2, 3);
-        const color = r.lossPercent === 0 ? c.success : r.lossPercent < 50 ? c.warn : c.error;
-        const icon = r.success ? c.success("✓") : c.error("✗");
-        console.log(`    ${c.muted("Ping".padEnd(10))}${c.textCool(t.label.padEnd(10))} ${color(`${r.avg.toFixed(0)}ms`.padStart(5))} ${icon}`);
+      for (const h of ["google.com", "github.com", "baidu.com", "bilibili.com"]) {
+        const r = h === "google.com" ? tcpTest(h, 3) : pingTest(h, 2, 3);
+        const clr = r.success ? c.success : c.error;
+        const ico = r.success ? c.success("✓") : c.error("✗");
+        console.log(`    ${c.muted("Ping".padEnd(10))}${c.textCool(h.padEnd(10))} ${clr(`${r.avg}ms`.padStart(5))} ${ico}`);
       }
     } else {
       console.log("  " + c.error.bold("── Switch Failed ──"));
@@ -286,13 +284,21 @@ async function render() {
 // ── Switch execution ─────────────────────────────────────────────
 
 async function executeSwitch(profile: Profile) {
-  const stages: StageState[] = [
-    { label: "Snapshot saved", status: "pending" },
-    { label: "Deleting default route", status: "pending" },
-    { label: `Adding new route (${profile.gateway})`, status: "pending" },
-    { label: "Updating network service", status: "pending" },
-    { label: `Verifying connectivity (${profile.testTarget})`, status: "pending" },
-  ];
+  const isPureDhcp = profile.useDhcp && !profile.gateway;
+  const stages: StageState[] = isPureDhcp
+    ? [
+        { label: "Snapshot saved", status: "pending" },
+        { label: "Switching to DHCP mode", status: "pending" },
+        { label: "Waiting for DHCP lease...", status: "pending" },
+        { label: `Verifying connectivity (${profile.testTarget})`, status: "pending" },
+      ]
+    : [
+        { label: "Snapshot saved", status: "pending" },
+        { label: "Deleting default route", status: "pending" },
+        { label: `Adding new route (${profile.gateway})`, status: "pending" },
+        { label: "Updating network service", status: "pending" },
+        { label: `Verifying connectivity (${profile.testTarget})`, status: "pending" },
+      ];
   step = { kind: "switching", profile, stages };
   await render();
 
@@ -305,17 +311,43 @@ async function executeSwitch(profile: Profile) {
   await render();
 
   try {
-    stages[1]!.status = "running"; await render(); await sleep(200);
-    stages[1]!.status = "done"; await render();
-    stages[2]!.status = "running"; await render();
-    await switchGateway(profile);
-    stages[2]!.status = "done"; await render();
-    stages[3]!.status = "done"; await render();
-    await sleep(1500); // let network stack settle after route change
-    stages[4]!.status = "running"; await render();
-    const pingResult = await pingTest(profile.testTarget, 3, settings.testTimeoutSeconds);
-    stages[4]!.status = pingResult.success ? "done" : "failed";
-    stages[4]!.detail = pingResult.success ? `${pingResult.avg.toFixed(1)}ms` : "no response";
+    if (isPureDhcp) {
+      stages[1]!.status = "running"; await render();
+      await switchGateway(profile);
+      stages[1]!.status = "done"; await render();
+      // Poll for new IP (up to 10s)
+      stages[2]!.status = "running"; await render();
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await sleep(500);
+        const ns = getCurrentStatus();
+        if (ns.localIp && ns.gateway && ns.localIp !== "0.0.0.0") {
+          stages[2]!.status = "done";
+          stages[2]!.detail = ns.localIp;
+          break;
+        }
+      }
+      if (stages[2]!.status === "running") {
+        stages[2]!.status = "done";
+        stages[2]!.detail = "timeout";
+      }
+      await render();
+      stages[3]!.status = "running"; await render();
+    } else {
+      stages[1]!.status = "running"; await render(); await sleep(200);
+      stages[1]!.status = "done"; await render();
+      stages[2]!.status = "running"; await render();
+      await switchGateway(profile);
+      stages[2]!.status = "done"; await render();
+      stages[3]!.status = "done"; await render();
+      // DHCP needs more time for DNS after network change
+      await sleep(profile.useDhcp ? 3500 : 1500);
+      stages[4]!.status = "running"; await render();
+    }
+    const pingIdx = isPureDhcp ? 3 : 4;
+    const target = profile.testTarget || "google.com";
+    const r = target === "google.com" ? tcpTest(target, 3) : pingTest(target, 2, 3);
+    stages[pingIdx]!.status = r.success ? "done" : "failed";
+    stages[pingIdx]!.detail = r.success ? `${r.avg}ms` : "no response";
     await render();
     step = { kind: "done", profile, success: true };
   } catch (e) {
@@ -463,8 +495,12 @@ function setupInput() {
         return;
       }
       if (data === " " && field.key === "useDhcp") {
-        // Space toggles DHCP
+        // Space toggles DHCP — clear DNS when switching to DHCP
         field.value = field.value === "false" ? "true" : "false";
+        if (field.value === "true") {
+          const dnsField = step.fields.find((x) => x.key === "dns");
+          if (dnsField) dnsField.value = "";
+        }
         await render();
         return;
       }
@@ -590,7 +626,7 @@ export async function startInteractive(): Promise<void> {
         id: "default", name: "My Gateway", gateway: current.gateway,
         useDhcp: current.dhcp, dns: current.dns,
         description: "Auto-detected default gateway", order: 0,
-        testTarget: "8.8.8.8", color: "cyan",
+        testTarget: "google.com", color: "cyan",
       };
       config.profiles = [defaultProfile];
       saveConfig(config);
